@@ -1,0 +1,76 @@
+CREATE MASTER KEY
+
+DROP DATABASE SCOPED CREDENTIAL AzureStorageCredential;
+CREATE DATABASE SCOPED CREDENTIAL AzureStorageCredential
+WITH
+    IDENTITY = '<ApplicationId>@<oauthEndpoint>',
+    SECRET = '<ApplicationKey>';
+
+DROP EXTERNAL DATA SOURCE DataLake;
+CREATE EXTERNAL DATA SOURCE DataLake
+WITH (
+    TYPE = HADOOP,
+    LOCATION = 'adl://<lakename>.azuredatalakestore.net',
+    CREDENTIAL = AzureStorageCredential
+);
+
+DROP EXTERNAL FILE FORMAT CSVFile;
+CREATE EXTERNAL FILE FORMAT CSVFile
+WITH (
+    FORMAT_TYPE = DelimitedText,
+    FORMAT_OPTIONS (FIELD_TERMINATOR = ',', STRING_DELIMITER = '"')
+);
+
+DROP EXTERNAL TABLE dbo.BatchLayer
+CREATE EXTERNAL TABLE dbo.BatchLayer
+	(
+		ProductName nvarchar(50),
+		SalesAmount decimal
+	)
+WITH (
+    LOCATION='<summary file>',
+    DATA_SOURCE=DataLake,
+    FILE_FORMAT=CSVFile,
+	REJECT_TYPE=Value,
+	REJECT_VALUE=0
+);
+
+SELECT * FROM dbo.BatchLayer
+
+DROP EXTERNAL TABLE dbo.SpeedLayer
+CREATE EXTERNAL TABLE dbo.SpeedLayer
+	(
+            SalesOrderNumber nvarchar(50),
+            ProductKey int,
+            ProductName nvarchar(50),
+            OrderDateKey int,
+            OrderQuantity int,
+            UnitPrice decimal,
+            DiscountAmount decimal,
+            SalesAmount decimal,
+            TaxAmt decimal
+	)
+WITH (
+    LOCATION='<Current Streaming File>',
+    DATA_SOURCE=DataLake,
+    FILE_FORMAT=CSVFile,
+	REJECT_TYPE=Value,
+	REJECT_VALUE=1
+);
+
+SELECT ProductName,
+	SUM(SalesAmount) SalesAmount
+FROM dbo.SpeedLayer
+GROUP BY ProductName
+
+
+SELECT SUM(SalesAmount)
+FROM
+	(
+		SELECT SUM(SalesAmount) SalesAmount
+		FROM dbo.BatchLayer
+		UNION
+		SELECT SUM(SalesAmount) SalesAmount
+		FROM dbo.SpeedLayer
+		GROUP BY ProductName
+	) Served

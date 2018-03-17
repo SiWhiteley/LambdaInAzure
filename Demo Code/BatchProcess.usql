@@ -1,0 +1,28 @@
+DECLARE @InputDir string = "/RAW/Corporate/SalesFeed/{FileDate:yyyy}/{FileDate:MM}/{FileDate:dd}/{FileDate:HH}_{FileName}.csv";
+DECLARE @OutputDir string = "/BASE/SalesTotals/Sales.csv";
+DECLARE @Now DateTime = DateTime.UtcNow;
+
+@Sales =
+        EXTRACT
+            SalesOrderNumber string,
+            ProductKey int,
+            ProductName string,
+            OrderDateKey int,
+            OrderQuantity int,
+            UnitPrice decimal,
+            DiscountAmount decimal,
+            SalesAmount decimal,
+            TaxAmt decimal,
+            FileDate DateTime,
+            FileName string
+        FROM @InputDir
+        USING Extractors.Csv(skipFirstNRows:1);
+
+@Result =
+        SELECT ProductName,
+                SUM(SalesAmount) AS SalesAmount
+        FROM @Sales
+        WHERE (FileDate.Date < @Now.Date) OR (FileDate.Hour < @Now.Hour)
+        GROUP BY ProductName;
+
+OUTPUT @Result TO @OutputDir USING Outputters.Csv();
