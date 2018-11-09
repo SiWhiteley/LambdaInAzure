@@ -1,11 +1,14 @@
+--Create a master key to enable encryption
 CREATE MASTER KEY
 
+--Create a credential file for your users
 DROP DATABASE SCOPED CREDENTIAL AzureStorageCredential;
 CREATE DATABASE SCOPED CREDENTIAL AzureStorageCredential
 WITH
     IDENTITY = '<ApplicationId>@<oauthEndpoint>',
     SECRET = '<ApplicationKey>';
 
+--Create a data source that uses the credentials to connect to ADLS
 DROP EXTERNAL DATA SOURCE DataLake;
 CREATE EXTERNAL DATA SOURCE DataLake
 WITH (
@@ -14,6 +17,7 @@ WITH (
     CREDENTIAL = AzureStorageCredential
 );
 
+--Tell Polybase how to read the files it finds
 DROP EXTERNAL FILE FORMAT CSVFile;
 CREATE EXTERNAL FILE FORMAT CSVFile
 WITH (
@@ -21,6 +25,7 @@ WITH (
     FORMAT_OPTIONS (FIELD_TERMINATOR = ',', STRING_DELIMITER = '"')
 );
 
+--Finally, create our polybase table over the current active file
 DROP EXTERNAL TABLE dbo.SpeedLayer
 CREATE EXTERNAL TABLE dbo.SpeedLayer
 	(
@@ -42,6 +47,8 @@ WITH (
 	REJECT_VALUE=1
 );
 
+
+--You should now be able to query the batch table and speed file directly
 SELECT SUM(SalesAmount)
 FROM
 	(
